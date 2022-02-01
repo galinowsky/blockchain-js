@@ -6,7 +6,7 @@ function Blockchain() {
     this.chain = [];
     this.pendingTransactions = [];
     this.curretNodeUrl = currentNodeUrl;
-    this.networkNodes = []
+    this.networkNodes = [];
     this.createNewBlock(100,'0','0');
 }
 
@@ -42,7 +42,7 @@ Blockchain.prototype.createNewTransaction = function (amount, sender, recipient)
     };
 
     this.pendingTransactions.push(newTransaction);
-    return this.getLastBlock()['index']
+    return this.getLastBlock()['index'];
 
 };
 

@@ -5,7 +5,8 @@ const uuid = require("uuid");
 const app = express();
 const port = process.argv[2];
 const nodeAdress = uuid.v1().split('-').join("");
-const rp = require('request-promise');
+const axios = require('axios');
+
 
 const hubiCoin = new Blockchain();
 
@@ -54,44 +55,58 @@ app.get('/mine', (req, res) => {
 app.post('/register-and-broadcast-node', (req, res) => {
 
     const newNodeUrl = req.body.newNodeUrl;
+    console.log(newNodeUrl);
     if (!(hubiCoin.networkNodes.includes(newNodeUrl))) hubiCoin.networkNodes.push(newNodeUrl);
-
+console.log(hubiCoin.networkNodes);
     const regNodesPromises = [];
     hubiCoin.networkNodes.forEach(networkNodeUrl => {
         //register-node
         const requestOptions = {
-            uri: networkNodeUrl + '/register-node',
-            method: 'POST',
+
             body: { newNodeUrl },
             json: true,
         };
-        regNodesPromises.push(rp(requestOptions));
 
+        regNodesPromises.push(axios.post(networkNodeUrl + '/register-node',requestOptions));
+// console.log(regNodesPromises);
     });
 
     Promise.all(regNodesPromises).then(data => {
         //use data..
         const bulkRegisterOptions = {
-            uri: newNodeUrl + 'register-nodes-bulk',
-            method: 'POST',
-            body: { allNetworkNodes: [...hubiCoin.networkNodes, hubiCoin.curretNodeUrl] },
-            json: true
+           allNetworkNodes: [...hubiCoin.networkNodes, hubiCoin.curretNodeUrl] 
+  
         };
-        return rp(bulkRegisterOprions);
+        return axios.post(newNodeUrl + '/register-nodes-bulk',bulkRegisterOptions);
 
     }).then(data => {
-
-        res.json({note:'New node registered with network succesfully'});
-    })
+        console.log("then resolved 2nd ");
+        console.log();
+        res.json({ note: 'New node registered with network succesfully' });
+    }).catch(err=> console.log(err));
 
 });
 // register a node with the network
 app.post('/register-node', (req, res) => {
-    hubiCoin.push(req.body.newNodeUrl);
+    const { newNodeUrl } = req.body
+    const nodeNotAlreadyPresent = !(hubiCoin.networkNodes.includes(newNodeUrl));
+    const notCurrentNode = hubiCoin.currentNodeUrl !== newNodeUrl;
+    if (nodeNotAlreadyPresent && notCurrentNode) hubiCoin.networkNodes.push(req.body.newNodeUrl);
+    res.json({ note: 'New node registered succesfully.' });
+
 });
 app.post('/register-nodes-bulk', (req, res) => {
+    console.log("hellloooo");
+    // console.log(req.body.body);
+    const { allNetworkNodes } = req.body;
+    allNetworkNodes.forEach(networkNodeUrl => {
+        const nodeNotAlreadyPresent = !(hubiCoin.networkNodes.includes(networkNodeUrl));
+        const notCurrentNode = hubiCoin.currentNodeUrl !== networkNodeUrl;
 
-    hubiCoin.networkNodes = req.body.allNetworkNodes;
+        if (notCurrentNode && nodeNotAlreadyPresent) hubiCoin.networkNodes.push(networkNodeUrl);
+    });
+    // hubiCoin.networkNodes = req.body.allNetworkNodes;
+    res.json({note: 'Bulk registration succesfull.'});
 
 });
 app.listen(port, () => {
