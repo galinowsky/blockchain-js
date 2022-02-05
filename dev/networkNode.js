@@ -22,16 +22,46 @@ app.get('/', (req, res) => {
 app.get('/blockchain', (req, res) => {
     res.send(hubiCoin);
 });
-
+//taskk broadcast transaction to every node
+//change createNewTransakction into 2 seperate functions
 app.post('/transaction', (req, res) => {
-    const blockIndex = hubiCoin.createNewTransaction(
+    console.log(req.body);
+    const {newTransaction} = req.body
+
+    const blockIndex = hubiCoin.addTransactionToPendingTransactions(newTransaction);
+    res.json({ note: `Transaction will be added in block ${blockIndex}` });
+});
+app.post('/transaction/broadcast', (req, res) => {
+    const newTransaction = hubiCoin.createNewTransaction(
         req.body.amount,
         req.body.sender,
         req.body.recipient
     );
-    res.json({ note: `transaction will be added in block ${blockIndex}` });
-});
+    hubiCoin.addTransactionToPendingTransactions(newTransaction);
 
+    const requestPromises = [];
+    hubiCoin.networkNodes.forEach(newtworkNodeUrl => {
+
+        const requestOptions = {
+            newTransaction,
+            json: true,
+        };
+
+        const requestPromise = axios.post(newtworkNodeUrl + '/transaction', requestOptions);
+        requestPromises.push(requestPromise);
+
+        Promise.all(requestPromises).then(data => {
+            res.json({ note: 'Transaction created and broadcaast succesfully.' });
+        });
+    });
+
+});
+app.post('/register-transaction', (req, res) => {
+    const { transaction } = req.body;
+
+    this.addTransactionToPendingTransactions(transaction);
+
+});
 
 
 app.get('/mine', (req, res) => {
@@ -57,15 +87,14 @@ app.get('/mine', (req, res) => {
 //register the node and broadcast to network
 app.post('/register-and-broadcast-node', (req, res) => {
 
-    const newNodeUrl = req.body.newNodeUrl;
+    const { newNodeUrl } = req.body;
 
-    if (!(hubiCoin.networkNodes.includes(newNodeUrl))) hubiCoin.networkNodes.push(newNodeUrl);
+    if (!(hubiCoin.isNodeRegistered(newNodeUrl))) hubiCoin.networkNodes.push(newNodeUrl);
 
     const regNodesPromises = [];
     hubiCoin.networkNodes.forEach(networkNodeUrl => {
         //register-node
         const requestOptions = {
-
             newNodeUrl,
             json: true,
         };
@@ -80,7 +109,7 @@ app.post('/register-and-broadcast-node', (req, res) => {
             allNetworkNodes: [...hubiCoin.networkNodes, hubiCoin.currentNodeUrl]
 
         };
-        console.log(bulkRegisterOptions.allNetworkNodes);
+
         return axios.post(newNodeUrl + '/register-nodes-bulk', bulkRegisterOptions);
 
     }).then(data => {
@@ -91,17 +120,15 @@ app.post('/register-and-broadcast-node', (req, res) => {
 // register a node with the network
 app.post('/register-node', (req, res) => {
     const { newNodeUrl } = req.body;
-    const nodeNotAlreadyPresent = !(hubiCoin.networkNodes.includes(newNodeUrl));
 
-    const notCurrentNode = hubiCoin.currentNodeUrl !== newNodeUrl;
-    if (nodeNotAlreadyPresent && notCurrentNode) {
+
+    if (!hubiCoin.isNodeRegistered(newNodeUrl) && !hubiCoin.isGivenNodeAdressCurrent(newNodeUrl)) {
         hubiCoin.networkNodes.push(req.body.newNodeUrl);
     }
     res.json({ note: 'New node registered succesfully.' });
 
 });
 app.post('/register-nodes-bulk', (req, res) => {
-    console.log(hubiCoin.networkNodes);
     const { allNetworkNodes } = req.body;
 
     allNetworkNodes.forEach(networkNodeUrl => {
