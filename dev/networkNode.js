@@ -6,6 +6,7 @@ const app = express();
 const port = process.argv[2];
 const nodeAdress = uuid.v1().split('-').join("");
 const axios = require('axios');
+const requestPromise = require('request-promise');
 
 
 const hubiCoin = new Blockchain();
@@ -26,12 +27,13 @@ app.get('/blockchain', (req, res) => {
 //change createNewTransakction into 2 seperate functions
 app.post('/transaction', (req, res) => {
     console.log(req.body);
-    const {newTransaction} = req.body
+    const { newTransaction } = req.body;
 
     const blockIndex = hubiCoin.addTransactionToPendingTransactions(newTransaction);
     res.json({ note: `Transaction will be added in block ${blockIndex}` });
 });
 app.post('/transaction/broadcast', (req, res) => {
+
     const newTransaction = hubiCoin.createNewTransaction(
         req.body.amount,
         req.body.sender,
@@ -51,8 +53,9 @@ app.post('/transaction/broadcast', (req, res) => {
         requestPromises.push(requestPromise);
 
         Promise.all(requestPromises).then(data => {
+            // console.log(data);
             res.json({ note: 'Transaction created and broadcaast succesfully.' });
-        });
+        }).catch(err=> res.json(err.response.data));
     });
 
 });
@@ -61,6 +64,28 @@ app.post('/register-transaction', (req, res) => {
 
     this.addTransactionToPendingTransactions(transaction);
 
+});
+app.post('/receive-new-block', (req, res) => {
+    const { newBlock } = req.body;
+    console.log(req.body.body);
+    const lastBlock = hubiCoin.getLastBlock();
+    const correctHash = lastBlock.hash === newBlock.previousBlockHash;
+    const correctIndex = lastBlock.index + 1 === newBlock.index;
+    // this.addTransactionToPendingTransactions(transaction);
+// console.log('wiisz mje?');
+    if(correctHash && correctIndex) {
+        hubiCoin.chain.push(newBlock);
+        hubiCoin.pendingTransactions = [];
+        res.json({
+            note: 'New block received and accepted.',
+            newBlock
+        });
+    }else {
+        res.json({
+            note: "New block rejected.",
+            newBlock
+        });
+    }
 });
 
 
@@ -77,12 +102,36 @@ app.get('/mine', (req, res) => {
     const hash = hubiCoin.hashBlock(previousBlockHash, currentBlockData, nonce);
     const newBlock = hubiCoin.createNewBlock(nonce, previousBlockHash, hash);
 
-    hubiCoin.createNewTransaction(12.5, "00", req.body.adress, nodeAdress);
 
-    res.send({
-        note: `New Block mined succesfully`,
-        block: newBlock
-    });
+    const requestPromises = []
+    hubiCoin.networkNodes.forEach((networkNodeUrl => {
+        const requestOptions = {
+
+          newBlock 
+        };
+        // console.log(requestOptions);
+        requestPromises.push(axios.post(networkNodeUrl + "/receive-new-block", requestOptions)); 
+    }));
+
+    Promise.all(requestPromises).then(data => {
+
+        const requestOptions = {
+        
+                amount: 12.5,
+                sender: "00",
+                recipient: nodeAdress
+        
+        }
+        return axios.post(hubiCoin.currentNodeUrl + '/transaction/broadcast', requestOptions);
+    }).then(data => {
+        console.log(data);
+        res.send({
+            note: `New Block mined succesfully`,
+            block: newBlock,
+        });
+    }).catch(err=> res.json(err.response.data));
+
+
 });
 //register the node and broadcast to network
 app.post('/register-and-broadcast-node', (req, res) => {
@@ -114,7 +163,7 @@ app.post('/register-and-broadcast-node', (req, res) => {
 
     }).then(data => {
         res.json({ note: 'New node registered with network succesfully' });
-    }).catch(err => console.log(err));
+    }).catch(err => res.json(err.response.data));
 
 });
 // register a node with the network
