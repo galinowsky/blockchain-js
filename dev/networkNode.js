@@ -55,7 +55,7 @@ app.post('/transaction/broadcast', (req, res) => {
         Promise.all(requestPromises).then(data => {
             // console.log(data);
             res.json({ note: 'Transaction created and broadcaast succesfully.' });
-        }).catch(err=> res.json(err.response.data));
+        }).catch(err => res.json(err.response.data));
     });
 
 });
@@ -72,15 +72,15 @@ app.post('/receive-new-block', (req, res) => {
     const correctHash = lastBlock.hash === newBlock.previousBlockHash;
     const correctIndex = lastBlock.index + 1 === newBlock.index;
     // this.addTransactionToPendingTransactions(transaction);
-// console.log('wiisz mje?');
-    if(correctHash && correctIndex) {
+    // console.log('wiisz mje?');
+    if (correctHash && correctIndex) {
         hubiCoin.chain.push(newBlock);
         hubiCoin.pendingTransactions = [];
         res.json({
             note: 'New block received and accepted.',
             newBlock
         });
-    }else {
+    } else {
         res.json({
             note: "New block rejected.",
             newBlock
@@ -94,7 +94,7 @@ app.get('/mine', (req, res) => {
     const lastBlock = hubiCoin.getLastBlock();
     const previousBlockHash = lastBlock['hash'];
     const currentBlockData = {
-        trnasactions: hubiCoin.pendingTransactions,
+        transactions: hubiCoin.pendingTransactions,
         index: lastBlock.index + 1
     };
 
@@ -107,20 +107,20 @@ app.get('/mine', (req, res) => {
     hubiCoin.networkNodes.forEach((networkNodeUrl => {
         const requestOptions = {
 
-          newBlock 
+            newBlock
         };
         // console.log(requestOptions);
-        requestPromises.push(axios.post(networkNodeUrl + "/receive-new-block", requestOptions)); 
+        requestPromises.push(axios.post(networkNodeUrl + "/receive-new-block", requestOptions));
     }));
 
     Promise.all(requestPromises).then(data => {
 
         const requestOptions = {
-        
-                amount: 12.5,
-                sender: "00",
-                recipient: nodeAdress
-        
+
+            amount: 12.5,
+            sender: "00",
+            recipient: nodeAdress
+
         }
         return axios.post(hubiCoin.currentNodeUrl + '/transaction/broadcast', requestOptions);
     }).then(data => {
@@ -129,7 +129,7 @@ app.get('/mine', (req, res) => {
             note: `New Block mined succesfully`,
             block: newBlock,
         });
-    }).catch(err=> res.json(err.response.data));
+    }).catch(err => res.json(err.response.data));
 
 
 });
@@ -191,6 +191,54 @@ app.post('/register-nodes-bulk', (req, res) => {
     res.json({ note: 'Bulk registration succesfull.' });
 
 });
+
+app.get('/consensus', (req, res) => {
+
+    hubiCoin.networkNodes.forEach(networkNodeUrl => {
+        const requestPromises = [];
+        // const requestOptions = {
+        //     json: true,
+        // };
+
+        requestPromises.push(axios.get(networkNodeUrl + '/blockchain'));
+    })
+
+    Promie.all(requestPromise).then(blockchains => {
+        const currentChainLength = hubiCoin.chain.length;
+        let maxChainLength = currentChainLength;
+        let newLongestChain = null;
+        let newPendingTransactions;
+
+
+
+        blockchains.forEach(blockchain => {
+
+            if (blockchain.chain.length > maxChainLength) {
+                maxChainLength = blockchain.chain.length;
+                newLongestChain = blockchain.chain;
+                newPendingTransactions = blockchain.pendingTransactions;
+            }
+        })
+        if (!newLongestChain || (newLongestChain && !hubiCoin.chainIsValid(newLongestChain))) {
+            res.json({
+                note: 'Current chain has not been replaced',
+                chain: hubiCoin.chain
+            });
+
+        }else if (newLongestChain && hubiCoin.chainIsValid(newLongestChain)) {
+            hubiCoin.chain = newLongestChain;
+            hubiCoin.pendingTransactions = newPendingTransactions;
+            res.json({
+                note: "this chain has been replaced",
+                chain: hubiCoin.chain
+
+            });
+        }
+    });
+
+
+});
+
 app.listen(port, () => {
     console.log(`listening on port ${port}...`);
 });
