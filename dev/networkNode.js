@@ -26,11 +26,10 @@ app.get('/blockchain', (req, res) => {
 //taskk broadcast transaction to every node
 //change createNewTransakction into 2 seperate functions
 app.post('/transaction', (req, res) => {
-    console.log(req.body);
     const { newTransaction } = req.body;
 
     const blockIndex = hubiCoin.addTransactionToPendingTransactions(newTransaction);
-    res.json({ note: `Transaction will be added in block ${blockIndex}` });
+   return res.json({ note: `Transaction will be added in block ${blockIndex}` });
 });
 app.post('/transaction/broadcast', (req, res) => {
 
@@ -53,9 +52,8 @@ app.post('/transaction/broadcast', (req, res) => {
         requestPromises.push(requestPromise);
 
         Promise.all(requestPromises).then(data => {
-            // console.log(data);
-            res.json({ note: 'Transaction created and broadcaast succesfully.' });
-        }).catch(err => res.json(err.response.data));
+            return res.json({ note: 'Transaction created and broadcaast succesfully.' });
+        }).catch(err => console.log(err));
     });
 
 });
@@ -67,12 +65,10 @@ app.post('/register-transaction', (req, res) => {
 });
 app.post('/receive-new-block', (req, res) => {
     const { newBlock } = req.body;
-    console.log(req.body.body);
     const lastBlock = hubiCoin.getLastBlock();
     const correctHash = lastBlock.hash === newBlock.previousBlockHash;
     const correctIndex = lastBlock.index + 1 === newBlock.index;
     // this.addTransactionToPendingTransactions(transaction);
-    // console.log('wiisz mje?');
     if (correctHash && correctIndex) {
         hubiCoin.chain.push(newBlock);
         hubiCoin.pendingTransactions = [];
@@ -103,13 +99,12 @@ app.get('/mine', (req, res) => {
     const newBlock = hubiCoin.createNewBlock(nonce, previousBlockHash, hash);
 
 
-    const requestPromises = []
+    const requestPromises = [];
     hubiCoin.networkNodes.forEach((networkNodeUrl => {
         const requestOptions = {
 
             newBlock
         };
-        // console.log(requestOptions);
         requestPromises.push(axios.post(networkNodeUrl + "/receive-new-block", requestOptions));
     }));
 
@@ -124,7 +119,6 @@ app.get('/mine', (req, res) => {
         }
         return axios.post(hubiCoin.currentNodeUrl + '/transaction/broadcast', requestOptions);
     }).then(data => {
-        console.log(data);
         res.send({
             note: `New Block mined succesfully`,
             block: newBlock,
@@ -193,9 +187,9 @@ app.post('/register-nodes-bulk', (req, res) => {
 });
 
 app.get('/consensus', (req, res) => {
-
+    const requestPromises = [];
     hubiCoin.networkNodes.forEach(networkNodeUrl => {
-        const requestPromises = [];
+  
         // const requestOptions = {
         //     json: true,
         // };
@@ -203,7 +197,7 @@ app.get('/consensus', (req, res) => {
         requestPromises.push(axios.get(networkNodeUrl + '/blockchain'));
     })
 
-    Promie.all(requestPromise).then(blockchains => {
+    Promise.all(requestPromises).then(blockchains => {
         const currentChainLength = hubiCoin.chain.length;
         let maxChainLength = currentChainLength;
         let newLongestChain = null;
@@ -211,21 +205,21 @@ app.get('/consensus', (req, res) => {
 
 
 
-        blockchains.forEach(blockchain => {
-
+        blockchains.forEach(response => {
+            blockchain = response.data
             if (blockchain.chain.length > maxChainLength) {
                 maxChainLength = blockchain.chain.length;
                 newLongestChain = blockchain.chain;
                 newPendingTransactions = blockchain.pendingTransactions;
             }
-        })
+        });
         if (!newLongestChain || (newLongestChain && !hubiCoin.chainIsValid(newLongestChain))) {
             res.json({
                 note: 'Current chain has not been replaced',
                 chain: hubiCoin.chain
             });
 
-        }else if (newLongestChain && hubiCoin.chainIsValid(newLongestChain)) {
+        } else if (newLongestChain && hubiCoin.chainIsValid(newLongestChain)) {
             hubiCoin.chain = newLongestChain;
             hubiCoin.pendingTransactions = newPendingTransactions;
             res.json({
@@ -234,7 +228,7 @@ app.get('/consensus', (req, res) => {
 
             });
         }
-    });
+    }).catch(err => res.json(err))
 
 
 });
