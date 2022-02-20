@@ -4,14 +4,14 @@ const uuid = require("uuid");
 
 function Blockchain() {
 
-    this.chain = [];
-    this.pendingTransactions = [];
-    this.currentNodeUrl = currentNodeUrl;
-    this.networkNodes = [];
-    this.createNewBlock(100, '0', '0');
+	this.chain = [];
+	this.pendingTransactions = [];
+	this.currentNodeUrl = currentNodeUrl;
+	this.networkNodes = [];
+	this.createNewBlock(100, '0', '0');
 }
 
-Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash) {
+Blockchain.prototype.createNewBlock = function (nonce, previousBlockHash, hash) {
 	const newBlock = {
 		index: this.chain.length + 1,
 		timestamp: Date.now(),
@@ -28,38 +28,80 @@ Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash) {
 };
 
 
-Blockchain.prototype.getLastBlock = function() {
+Blockchain.prototype.getLastBlock = function () {
 	return this.chain[this.chain.length - 1];
 };
 
 
-Blockchain.prototype.createNewTransaction = function(amount, sender, recipient) {
+Blockchain.prototype.createNewTransaction = function (amount, sender, recipient) {
 	const newTransaction = {
-        amount,
-        sender,
-        recipient,
-        transactionId: uuid.v1().split('-').join("")
-    };
+		amount,
+		sender,
+		recipient,
+		transactionId: uuid.v1().split('-').join("")
+	};
 
 	return newTransaction;
 };
 
 
-Blockchain.prototype.addTransactionToPendingTransactions = function(transactionObj) {
+Blockchain.prototype.addTransactionToPendingTransactions = function (transactionObj) {
 	this.pendingTransactions.push(transactionObj);
 	return this.getLastBlock()['index'] + 1;
 };
 
 
-Blockchain.prototype.hashBlock = function(previousBlockHash, currentBlockData, nonce) {
-    // console.log(previousBlockHash, currentBlockData, nonce);
+Blockchain.prototype.hashBlock = function (previousBlockHash, currentBlockData, nonce) {
+	// console.log(previousBlockHash, currentBlockData, nonce);
 	const dataAsString = previousBlockHash + nonce.toString() + JSON.stringify(currentBlockData);
 	const hash = sha256(dataAsString);
 	return hash;
 };
 
+Blockchain.prototype.getBlock = function (blockHash) {
 
-Blockchain.prototype.proofOfWork = function(previousBlockHash, currentBlockData) {
+	return this.chain.find(block => block.hash === blockHash);
+}
+Blockchain.prototype.getTransaction = function (transactionId) {
+
+	// return this.chain.find(block => block.transactions.find(transaction => transaction.transactionId === transactionId));
+	let correctTransaction = null;
+	let correctBlock = null;
+	this.chain.forEach(block => {
+		block.transactions.forEach(transaction => {
+			if (transaction.transactionId === transactionId) {
+				correctBlock = block;
+				correctTransaction = transaction;
+			}
+		})
+
+
+	})
+	return {
+		transaction: correctTransaction,
+		block: correctBlock,
+	};
+};
+Blockchain.prototype.getAddressData = function (address) {
+	const addressTransactions = [];
+	this.chain.forEach(block => {
+		block.transactions.forEach(transaction => {
+			if (transaction.sender === address || transaction.recipient === address) {
+				addressTransactions.push(transaction);
+			}
+		});
+	});
+	let balance = 0;
+	addressTransactions.forEach(transaction => {
+		if (transaction.recipient === address) balance += transaction.amount;
+		else if (transaction.sender === address) balance -= transaction.amount;
+	});
+	return {
+		addressTransactions,
+		addressBalance: balance
+	}
+};
+Blockchain.prototype.proofOfWork = function (previousBlockHash, currentBlockData) {
 	let nonce = 0;
 	let hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
 	while (hash.substring(0, 4) !== '0000') {
@@ -72,19 +114,19 @@ Blockchain.prototype.proofOfWork = function(previousBlockHash, currentBlockData)
 
 
 
-Blockchain.prototype.chainIsValid = function(blockchain) {
+Blockchain.prototype.chainIsValid = function (blockchain) {
 	let validChain = true;
-    // blockchain.length
+	// blockchain.length
 	for (var i = 1; i < blockchain.length; i++) {
 		const currentBlock = blockchain[i];
 		const prevBlock = blockchain[i - 1];
 		const blockHash = this.hashBlock(prevBlock['hash'], { transactions: currentBlock['transactions'], index: currentBlock['index'] }, currentBlock['nonce']);
 		console.log(blockHash);
-        console.log(blockHash.substring(0, 4) !== '0000');
-        console.log(currentBlock['previousBlockHash'] !== prevBlock['hash']);
-        
-        
-        if (blockHash.substring(0, 4) !== '0000') validChain = false;
+		console.log(blockHash.substring(0, 4) !== '0000');
+		console.log(currentBlock['previousBlockHash'] !== prevBlock['hash']);
+
+
+		if (blockHash.substring(0, 4) !== '0000') validChain = false;
 		if (currentBlock['previousBlockHash'] !== prevBlock['hash']) validChain = false;
 	};
 
@@ -100,13 +142,13 @@ Blockchain.prototype.chainIsValid = function(blockchain) {
 };
 
 
-Blockchain.prototype.isNodeRegistered = function (nodeAdress) {
-    return this.networkNodes.includes(nodeAdress);
+Blockchain.prototype.isNodeRegistered = function (nodeaddress) {
+	return this.networkNodes.includes(nodeaddress);
 };
 
-Blockchain.prototype.isGivenNodeAdressCurrent = function (nodeAdress) {
+Blockchain.prototype.isGivenNodeAddressCurrent = function (nodeaddress) {
 
-    return this.currentNodeUrl === nodeAdress;
+	return this.currentNodeUrl === nodeaddress;
 };
 
 module.exports = Blockchain;

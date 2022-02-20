@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const uuid = require("uuid");
 const app = express();
 const port = process.argv[2];
-const nodeAdress = uuid.v1().split('-').join("");
+const nodeaddress = uuid.v1().split('-').join("");
 const axios = require('axios');
 const requestPromise = require('request-promise');
 
@@ -29,7 +29,7 @@ app.post('/transaction', (req, res) => {
     const { newTransaction } = req.body;
 
     const blockIndex = hubiCoin.addTransactionToPendingTransactions(newTransaction);
-   return res.json({ note: `Transaction will be added in block ${blockIndex}` });
+    return res.json({ note: `Transaction will be added in block ${blockIndex}` });
 });
 app.post('/transaction/broadcast', (req, res) => {
 
@@ -114,7 +114,7 @@ app.get('/mine', (req, res) => {
 
             amount: 12.5,
             sender: "00",
-            recipient: nodeAdress
+            recipient: nodeaddress
 
         }
         return axios.post(hubiCoin.currentNodeUrl + '/transaction/broadcast', requestOptions);
@@ -165,7 +165,7 @@ app.post('/register-node', (req, res) => {
     const { newNodeUrl } = req.body;
 
 
-    if (!hubiCoin.isNodeRegistered(newNodeUrl) && !hubiCoin.isGivenNodeAdressCurrent(newNodeUrl)) {
+    if (!hubiCoin.isNodeRegistered(newNodeUrl) && !hubiCoin.isGivenNodeAddressCurrent(newNodeUrl)) {
         hubiCoin.networkNodes.push(req.body.newNodeUrl);
     }
     res.json({ note: 'New node registered succesfully.' });
@@ -189,7 +189,7 @@ app.post('/register-nodes-bulk', (req, res) => {
 app.get('/consensus', (req, res) => {
     const requestPromises = [];
     hubiCoin.networkNodes.forEach(networkNodeUrl => {
-  
+
         // const requestOptions = {
         //     json: true,
         // };
@@ -232,6 +232,52 @@ app.get('/consensus', (req, res) => {
 
 
 });
+
+
+app.get('/block/:blockHash', (req, res) => { 
+
+    const requestedChain = hubiCoin.getBlock(req.params.blockHash);
+
+    if (requestedChain) {
+        res.json({
+            note: "Block has been found",
+            block: requestedChain
+        })
+    } else res.json({
+        note: "Block has not been found",
+
+    })
+
+
+
+});
+app.get('/transaction/:transactionId', (req, res) => {
+    const requestedTransaction = hubiCoin.getTransaction(req.params.transactionId);
+
+    if (requestedTransaction) {
+        res.json({
+            note: "Transaction has been found",
+          requestedTransaction
+        })
+    } else res.json({
+        note: "Transaction has not been found",
+
+    })
+
+});
+app.get('/address/:address',  (req, res)=> {
+
+    const address = req.params.address;
+    const addressData = hubiCoin.getAddressData(address);
+    res.json({
+        addressData: addressData,
+    })
+
+})
+
+app.get('/block-explorer', (req,res)=>{
+    res.sendFile('/block-explorer/index.html',{root: __dirname});
+})
 
 app.listen(port, () => {
     console.log(`listening on port ${port}...`);
